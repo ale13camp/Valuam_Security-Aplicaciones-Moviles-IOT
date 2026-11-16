@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alejandra_rol">Frontend y Project Manager</string>
+    <string name="alejandra_correo">alejandra.campusano@inacapmail.cl</string>
+    <string name="alejandra_enlace">https://github.com/ale13camp</string>
+    <string name="mauro_rol">Backend y Quality Assurance</string>
+    <string name="mauro_correo">mauro.valdivia@inacapmail.cl</string>
+    <string name="mauro_enlace">https://github.com/Mauv8</string>
+    <string name="equipo_institucion">INACAP</string>
+    <string name="equipo_carrera">Ingeniería en Informática</string>
+    <string name="equipo_seccion">TI3V42</string>
+</resources>
