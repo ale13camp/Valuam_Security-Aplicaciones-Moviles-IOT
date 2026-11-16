@@ -27,6 +27,17 @@
             android:textAlignment="center"
             android:textSize="26sp" />
 
+        <TextClock
+            android:id="@+id/fechaHora"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:format12Hour="'Fecha y hora:' dd-MM-yyyy, hh:mm:ss a"
+            android:format24Hour="'Fecha y hora:' dd-MM-yyyy, HH:mm:ss"
+            android:gravity="center"
+            android:textColor="#37475C"
+            android:textSize="16sp" />
+
         <Button
             android:id="@+id/gestion"
             android:layout_width="match_parent"
