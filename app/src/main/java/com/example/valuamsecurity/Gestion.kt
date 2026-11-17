@@ -1,6 +1,7 @@
 package com.example.valuamsecurity
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -66,6 +67,8 @@ class ListaUsuarios : Pantalla(R.layout.activity_lista) {
         resultados.forEach { usuario ->
             val fila = TableRow(this)
             val boton = Button(this)
+            boton.backgroundTintList = ColorStateList.valueOf(getColor(R.color.valuam_turquesa))
+            boton.setTextColor(getColor(R.color.valuam_azul_oscuro))
             boton.text = "${usuario.nombres} ${usuario.apellidos}"
             boton.setOnClickListener {
                 startActivity(Intent(this, EditarUsuario::class.java).putExtra(USUARIO_ID, usuario.id))

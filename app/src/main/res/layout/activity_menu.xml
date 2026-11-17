@@ -8,6 +8,7 @@
         android:layout_height="wrap_content"
         android:background="#FFFFFF"
         android:focusableInTouchMode="true"
+        android:gravity="center_vertical"
         android:orientation="vertical"
         android:padding="24dp">
 
@@ -40,6 +41,9 @@
 
         <Button
             android:id="@+id/gestion"
+            android:backgroundTint="#7BC242"
+            android:drawableTint="#10243A"
+            android:textColor="#10243A"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:drawableStart="@android:drawable/ic_menu_manage"
@@ -47,6 +51,9 @@
 
         <Button
             android:id="@+id/sensores"
+            android:backgroundTint="#3BBFC1"
+            android:drawableTint="#10243A"
+            android:textColor="#10243A"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:drawableStart="@android:drawable/ic_menu_compass"
@@ -54,6 +61,9 @@
 
         <Button
             android:id="@+id/equipo"
+            android:backgroundTint="#4AA8E8"
+            android:drawableTint="#10243A"
+            android:textColor="#10243A"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:drawableStart="@android:drawable/ic_menu_info_details"

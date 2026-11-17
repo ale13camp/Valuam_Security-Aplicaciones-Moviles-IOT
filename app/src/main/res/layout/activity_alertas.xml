@@ -10,6 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:focusableInTouchMode="true"
+        android:gravity="center_vertical"
         android:orientation="vertical"
         android:padding="24dp">
 
@@ -82,6 +83,8 @@
 
         <Button
             android:id="@+id/reintentar"
+            android:backgroundTint="#4AA8E8"
+            android:textColor="#10243A"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Reintentar"
