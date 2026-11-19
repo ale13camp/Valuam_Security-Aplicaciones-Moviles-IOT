@@ -3,6 +3,7 @@ plugins {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.example.valuamsecurity"
     compileSdk {
         version = release(37)
@@ -12,8 +13,9 @@ android {
         applicationId = "com.example.valuamsecurity"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("valuamApiUrl").orElse("").get() + "\"")
+        versionCode = 2
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,6 +35,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     implementation("com.github.f0ris.sweetalert:library:1.6.2")
     implementation("com.android.volley:volley:1.2.1")

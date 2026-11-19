@@ -2,76 +2,137 @@ package com.example.valuamsecurity
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.TextWatcher
-import android.text.Editable
+import android.os.CountDownTimer
+import android.os.SystemClock
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import androidx.core.widget.doAfterTextChanged
+import org.json.JSONObject
 
-private const val CODIGO_DEMO = "48216"
 internal const val USUARIO_ID = "usuario_id"
 
 class Recuperar : Pantalla(R.layout.activity_recuperar) {
-    private var usuarioId: String? = null
+    private var recuperacion = ""
+    private var limite = 0L
+    private var reloj: CountDownTimer? = null
+    private var verificando = false
+    private var abriendoClave = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recuperacion = savedInstanceState?.getString("recuperacion") ?: usuarios.base.meta("recuperacion")
+        limite = savedInstanceState?.getLong("limite") ?: usuarios.base.meta("recuperacion_limite").toLongOrNull() ?: 0
         val correo = findViewById<EditText>(R.id.correo)
-        val panel = findViewById<View>(R.id.panelCodigo)
+        if (savedInstanceState == null) correo.setText(usuarios.base.meta("recuperacion_correo"))
         val recuperar = findViewById<Button>(R.id.recuperar)
-        val casillas = listOf(R.id.digito1, R.id.digito2, R.id.digito3, R.id.digito4, R.id.digito5)
+        val verificar = findViewById<Button>(R.id.verificar)
+        val casillas = listOf(R.id.digito1, R.id.digito2, R.id.digito3, R.id.digito4, R.id.digito5, R.id.digito6)
             .map { findViewById<EditText>(it) }
-        usuarioId = savedInstanceState?.getString(USUARIO_ID)
-
-        fun mostrarCodigo() {
-            panel.visibility = View.VISIBLE
-            correo.isEnabled = false
-            recuperar.isEnabled = false
-            findViewById<TextView>(R.id.ayudaCodigo).text = "Código de demostración: $CODIGO_DEMO"
-        }
-
-        if (usuarioId != null) mostrarCodigo()
-        casillas.zipWithNext().forEach { (actual, siguiente) ->
-            actual.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    if (actual.hasFocus() && s?.length == 1) siguiente.requestFocus()
-                }
-                override fun afterTextChanged(s: Editable?) = Unit
-            })
-        }
+        casillas.zipWithNext().forEach { (actual, siguiente) -> actual.doAfterTextChanged {
+            if (actual.hasFocus() && it?.length == 1) siguiente.requestFocus()
+        } }
+        if (recuperacion.isNotBlank()) mostrarReloj()
         recuperar.setOnClickListener {
             if (!correoValido(correo)) return@setOnClickListener
-            val usuario = usuarios.porCorreo(correo.text.toString().trim())
-            if (usuario == null) {
-                error("Ese correo no está registrado.", correo)
-                return@setOnClickListener
-            }
-            usuarioId = usuario.id
-            exito("Envío simulado. Ingresa los cinco dígitos.") {
-                mostrarCodigo()
-                casillas.first().requestFocus()
+            if (!Servidor.conectado(this)) { error("Necesitas Internet para recibir el código por correo."); return@setOnClickListener }
+            recuperar.isEnabled = false
+            val email = correo.text.toString().trim()
+            ejecutarEnPantalla({
+                val datos = Servidor.solicitar(this, JSONObject().put("accion", "recuperar").put("correo", email))
+                usuarios.base.meta("recuperacion", datos.getString("recuperacion"))
+                usuarios.base.meta("recuperacion_correo", email)
+                usuarios.base.meta("recuperacion_limite", (SystemClock.elapsedRealtime() +
+                    ((datos.getLong("vence") - datos.getLong("ahora")) * 1000).coerceAtLeast(0)).toString())
+                usuarios.porCorreo(email)?.let { usuarios.invalidarAcceso(it.id) }
+                datos
+            }) { r ->
+                recuperar.isEnabled = true
+                r.onSuccess { datos ->
+                    recuperacion = datos.getString("recuperacion")
+                    limite = SystemClock.elapsedRealtime() + ((datos.getLong("vence") - datos.getLong("ahora")) * 1000).coerceAtLeast(0)
+                    usuarios.porCorreo(email)?.let { usuarios.invalidarAcceso(it.id) }
+                    casillas.forEach { it.text.clear() }
+                    mostrarReloj()
+                    exito("Código enviado. Revisa tu correo.")
+                }.onFailure { error(it.message ?: "No se pudo enviar el código.") }
             }
         }
-        findViewById<Button>(R.id.verificar).setOnClickListener {
-            val vacia = casillas.firstOrNull { it.text.isEmpty() }
-            if (vacia != null) {
-                error("Completa los cinco dígitos.", vacia)
-                return@setOnClickListener
+        verificar.setOnClickListener {
+            val codigo = casillas.joinToString("") { it.text.toString() }
+            if (!Regex("[0-9]{6}").matches(codigo)) { error("Completa los seis dígitos."); return@setOnClickListener }
+            verificar.isEnabled = false
+            verificando = true
+            ejecutarEnPantalla({
+                val datos = Servidor.solicitar(this, JSONObject().put("accion", "verificar").put("recuperacion", recuperacion).put("codigo", codigo))
+                usuarios.base.meta("token_recuperacion", datos.getString("token"))
+                usuarios.base.meta("id_recuperacion", datos.getString("id"))
+                usuarios.base.meta("token_recuperacion_hasta", (System.currentTimeMillis() + 300000).toString())
+                datos
+            }) { r ->
+                verificando = false
+                verificar.isEnabled = SystemClock.elapsedRealtime() < limite
+                r.onSuccess { datos ->
+                    abrirNuevaClave(datos.getString("token"), datos.getString("id"))
+                }.onFailure { error(it.message ?: "No se pudo verificar el código.") }
             }
-            if (casillas.joinToString("") { it.text.toString() } != CODIGO_DEMO) {
-                error("El código es incorrecto.", casillas.first())
-                return@setOnClickListener
-            }
-            startActivity(Intent(this, CrearClave::class.java).putExtra(USUARIO_ID, usuarioId))
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        revisarOperacionPendiente()
+    }
+
+    override fun revisarOperacionPendiente() {
+        val guardada = usuarios.base.meta("recuperacion")
+        if (guardada.isNotBlank() && guardada != recuperacion) {
+            recuperacion = guardada
+            limite = usuarios.base.meta("recuperacion_limite").toLongOrNull() ?: 0
+            mostrarReloj()
+        }
+        val token = usuarios.base.meta("token_recuperacion")
+        val vence = usuarios.base.meta("token_recuperacion_hasta").toLongOrNull() ?: 0
+        if (token.isNotBlank() && vence > System.currentTimeMillis()) {
+            abrirNuevaClave(token, usuarios.base.meta("id_recuperacion"))
+        }
+    }
+
+    private fun abrirNuevaClave(token: String, id: String) {
+        if (abriendoClave || isFinishing) return
+        abriendoClave = true
+        startActivity(Intent(this, CrearClave::class.java).putExtra("token_recuperacion", token).putExtra(USUARIO_ID, id))
+        finish()
+    }
+
+    private fun mostrarReloj() {
+        findViewById<View>(R.id.panelCodigo).visibility = View.VISIBLE
+        val verificar = findViewById<Button>(R.id.verificar)
+        val recuperar = findViewById<Button>(R.id.recuperar)
+        val ayuda = findViewById<TextView>(R.id.ayudaCodigo)
+        reloj?.cancel()
+        reloj = object : CountDownTimer((limite - SystemClock.elapsedRealtime()).coerceAtLeast(0), 1000) {
+            override fun onTick(restante: Long) {
+                ayuda.text = "Código enviado a tu correo. Vence en ${(restante + 999) / 1000} segundos."
+                verificar.isEnabled = !verificando
+                recuperar.isEnabled = false
+            }
+            override fun onFinish() {
+                ayuda.text = "El código venció. Solicita uno nuevo."
+                verificar.isEnabled = false
+                recuperar.isEnabled = true
+                recuperar.text = "Solicitar otro código"
+            }
+        }.start()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(USUARIO_ID, usuarioId)
+        outState.putString("recuperacion", recuperacion)
+        outState.putLong("limite", limite)
         super.onSaveInstanceState(outState)
     }
+    override fun onDestroy() { reloj?.cancel(); super.onDestroy() }
 }
 
 class CrearClave : Pantalla(R.layout.activity_crear_clave) {
@@ -79,13 +140,23 @@ class CrearClave : Pantalla(R.layout.activity_crear_clave) {
         super.onCreate(savedInstanceState)
         val clave = findViewById<EditText>(R.id.clave)
         val confirmacion = findViewById<EditText>(R.id.confirmacion)
-        findViewById<Button>(R.id.guardar).setOnClickListener {
+        val guardar = findViewById<Button>(R.id.guardar)
+        guardar.setOnClickListener {
             if (!confirmarClave(clave, confirmacion)) return@setOnClickListener
-            val usuario = usuarios.porId(intent.getStringExtra(USUARIO_ID))
-            if (usuario != null && usuarios.guardar(usuario.conClave(clave.text.toString()))) {
-                exito("Tu contraseña se actualizó.", ::volverAlLogin)
-            } else {
-                error("No se pudo actualizar la contraseña.")
+            val id = intent.getStringExtra(USUARIO_ID) ?: return@setOnClickListener
+            val password = clave.text.toString()
+            guardar.isEnabled = false
+            ejecutarEnPantalla({
+                val u = Usuario(id = id, nombres = "", apellidos = "", correo = "", claveHash = "", esquema = "pbkdf2-120000").conClave(password)
+                Servidor.solicitar(this, JSONObject().put("accion", "nueva_clave").put("token", intent.getStringExtra("token_recuperacion"))
+                    .put("credencial", u.claveHash).put("esquema", u.esquema))
+                usuarios.invalidarAcceso(id)
+                usuarios.base.meta("token_recuperacion", "")
+                usuarios.base.meta("recuperacion", "")
+            }) { r ->
+                guardar.isEnabled = true
+                r.onSuccess { exito("Contraseña actualizada y cuenta reactivada.", ::volverAlLogin) }
+                    .onFailure { error(it.message ?: "No se pudo actualizar la contraseña.") }
             }
         }
     }

@@ -1,0 +1,40 @@
+CREATE DATABASE IF NOT EXISTS valuam_security CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE valuam_security;
+CREATE TABLE IF NOT EXISTS usuarios (
+ id CHAR(36) PRIMARY KEY,
+ usuario VARCHAR(80) NOT NULL UNIQUE,
+ nombres VARCHAR(160) NOT NULL,
+ apellidos VARCHAR(160) NOT NULL,
+ correo VARCHAR(254) NOT NULL UNIQUE,
+ secreto VARCHAR(255) NOT NULL,
+ esquema VARCHAR(30) NOT NULL,
+ revision_clave BIGINT NOT NULL DEFAULT 1,
+ activo BOOLEAN NOT NULL DEFAULT TRUE,
+ eliminado BOOLEAN NOT NULL DEFAULT FALSE,
+ version BIGINT NOT NULL DEFAULT 1,
+ codigo_hash VARCHAR(255) NULL,
+ codigo_hasta BIGINT NULL,
+ intentos INT NOT NULL DEFAULT 0,
+ recuperacion VARCHAR(64) NULL,
+ token_hash CHAR(64) NULL,
+ token_hasta BIGINT NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS sesiones (
+ token_hash CHAR(64) PRIMARY KEY,
+ usuario_id CHAR(36) NOT NULL,
+ vence BIGINT NOT NULL,
+ FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS operaciones (
+ id CHAR(36) PRIMARY KEY,
+ huella CHAR(64) NOT NULL,
+ resultado JSON NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS lecturas (
+ id CHAR(36) PRIMARY KEY,
+ temperatura DOUBLE NOT NULL,
+ humedad DOUBLE NOT NULL,
+ obtenida BIGINT NOT NULL,
+ usuario_id CHAR(36) NOT NULL,
+ FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB;

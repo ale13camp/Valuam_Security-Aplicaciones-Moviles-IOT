@@ -118,6 +118,16 @@
                     android:hint="5"
                     android:inputType="number"
                     android:maxLength="1" />
+<EditText
+                    android:id="@+id/digito6"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:contentDescription="Dígito 6"
+                    android:gravity="center"
+                    android:hint="6"
+                    android:inputType="number"
+                    android:maxLength="1" />
             </LinearLayout>
 
             <Button
