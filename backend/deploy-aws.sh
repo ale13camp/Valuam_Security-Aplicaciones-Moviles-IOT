@@ -6,7 +6,7 @@ dnf install -y httpd php php-mysqlnd php-mbstring php-xml mariadb105-server unzi
 systemctl enable --now httpd mariadb
 mysql < schema.sql
 install -d -m 750 /opt/valuam-security
-cp -R public vendor config.example.php /opt/valuam-security/
+cp -R public vendor config.example.php correo.php /opt/valuam-security/
 if [ ! -f /opt/valuam-security/config.local.php ]; then
     db_password=$(openssl rand -hex 24)
     mysql -e "CREATE USER IF NOT EXISTS 'valuam_app'@'127.0.0.1' IDENTIFIED BY '$db_password'; GRANT SELECT,INSERT,UPDATE,DELETE ON valuam_security.* TO 'valuam_app'@'127.0.0.1';"

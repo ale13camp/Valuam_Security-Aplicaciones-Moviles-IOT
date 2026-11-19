@@ -23,6 +23,11 @@ internal fun normalizarBusqueda(texto: String): String =
 
 internal fun temperaturaAlta(valor: Double) = valor >= 25.0
 
+internal fun mismoPerfil(local: Usuario, remoto: Usuario): Boolean =
+    local.id == remoto.id && !local.eliminado && !remoto.eliminado &&
+        local.usuario == remoto.usuario && local.nombres == remoto.nombres &&
+        local.apellidos == remoto.apellidos && local.correo == remoto.correo
+
 internal data class Usuario(
     val id: String = UUID.randomUUID().toString(),
     val nombres: String,

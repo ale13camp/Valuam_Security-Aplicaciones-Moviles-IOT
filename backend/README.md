@@ -26,7 +26,19 @@ La recuperación genera seis dígitos con `random_int`, guarda su hash, bloquea 
 
 ## Android y pruebas
 
-Configurar la URL con `-PvaluamApiUrl=https://SERVIDOR/valuam/index.php`. Sin esa propiedad, la app muestra que falta configurar el servidor y conserva el trabajo local.
+La URL predeterminada es `https://13.216.100.242/valuam/index.php`. Se puede reemplazar con `-PvaluamApiUrl=https://SERVIDOR/valuam/index.php`.
+
+## Despliegue AWS verificado el 19 de noviembre de 2026
+
+Instancia `valuamsecurity`, ID `i-0fd9437d4eef39d5d`, región `us-east-1`, Amazon Linux 2023, tipo `t3.micro`. IP elástica `13.216.100.242`, asignación `eipalloc-0deb8d124bb5215ea`.
+
+Apache publica `/valuam/index.php` por HTTPS. HTTP redirige a HTTPS y mantiene accesible la ruta ACME. El certificado de Let's Encrypt cubre la IP y se renueva con `/opt/certbot/bin/certbot renew`; el temporizador `valuam-certbot.timer` comprueba la renovación cada 12 horas y recarga Apache al renovar. Estos certificados duran aproximadamente seis días; el laboratorio debe estar activo para renovarlos. Referencia oficial: https://letsencrypt.org/2026/03/11/shorter-certs-certbot
+
+La configuración privada está en `/opt/valuam-security/config.local.php`, con permisos `640`, propietario `root:apache`. MariaDB escucha exclusivamente en `127.0.0.1:3306`. El grupo `sg-068013b332b651897` permite HTTP/HTTPS y SSH desde la IP pública del equipo de desarrollo; si esta cambia, actualizar únicamente el origen de SSH. La clave privada queda fuera del repositorio.
+
+Se migraron los datos locales existentes y se verificaron registro, login, CRUD, duplicados, conflictos, idempotencia, lecturas y verificación/reactivación de contraseña con `tests/integration.py` contra HTTPS y MariaDB de AWS. Los datos QA se eliminan al terminar. La autenticación SMTP de Gmail se comprobó desde la instancia sin mostrar credenciales.
+
+La APK con el endpoint HTTPS fue instalada conservando los datos del Redmi Note 8 Pro. Se verificó el inicio de sesión contra AWS y el estado «Sincronización completada», con cero operaciones pendientes y cero conflictos, sin `adb reverse`. La renovación simulada del certificado también terminó correctamente.
 
 Para pruebas por USB se utiliza `adb reverse tcp:8085 tcp:8085` y `-PvaluamApiUrl=http://127.0.0.1:8085/index.php`. Las excepciones de HTTP están limitadas a loopback y al emulador. La entrega se verifica en teléfono físico.
 

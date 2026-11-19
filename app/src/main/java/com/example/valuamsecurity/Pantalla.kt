@@ -52,7 +52,7 @@ abstract class Pantalla(private val layout: Int) : AppCompatActivity() {
     private fun revisarConflictos() {
         val conflicto = usuarios.conflictos().firstOrNull()
         if (conflicto == null) {
-            Sincronizacion.programar(this)
+            Sincronizacion.programar(this, inmediato = true)
             exito("Se reintentará la sincronización cuando el servidor esté disponible.")
             return
         }

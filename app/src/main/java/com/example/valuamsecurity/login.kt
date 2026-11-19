@@ -7,6 +7,11 @@ import androidx.appcompat.app.AlertDialog
 import org.json.JSONObject
 
 class login : Pantalla(R.layout.activity_login) {
+    override fun onResume() {
+        super.onResume()
+        if (usuarios.conflictos().isNotEmpty()) Sincronizacion.programar(this, inmediato = true)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val correo = findViewById<EditText>(R.id.correo)
@@ -22,10 +27,10 @@ class login : Pantalla(R.layout.activity_login) {
             val anterior = usuarios.porCorreo(email)
             if (anterior != null && anterior.version == 0L && anterior.usuario.isNotBlank() && anterior.coincide(password)) {
                 AlertDialog.Builder(this).setTitle("Cuenta pendiente de sincronización")
-                    .setMessage("Puedes corregir sus datos si el servidor indicó un usuario o correo duplicado.")
+                    .setMessage("El registro está guardado en el teléfono y aún falta confirmarlo en el servidor. Pulsa Reintentar para sincronizarlo ahora.")
                     .setPositiveButton("Corregir datos") { _, _ ->
                         startActivity(android.content.Intent(this, EditarUsuario::class.java).putExtra(USUARIO_ID, anterior.id))
-                    }.setNeutralButton("Reintentar") { _, _ -> Sincronizacion.programar(this) }
+                    }.setNeutralButton("Reintentar") { _, _ -> Sincronizacion.programar(this, inmediato = true) }
                     .setNegativeButton("Cancelar", null).show()
                 return@setOnClickListener
             }

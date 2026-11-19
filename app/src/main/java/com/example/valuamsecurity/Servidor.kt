@@ -77,14 +77,21 @@ class ValuamApp : Application() {
 
 class Sincronizacion(contexto: Context, parametros: WorkerParameters) : Worker(contexto, parametros) {
     companion object {
-        fun programar(contexto: Context) {
+        private val bloqueo = Any()
+
+        fun programar(contexto: Context, inmediato: Boolean = false) {
             val trabajo = OneTimeWorkRequestBuilder<Sincronizacion>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
-            WorkManager.getInstance(contexto).enqueueUniqueWork("sincronizacion-valuam", ExistingWorkPolicy.APPEND_OR_REPLACE, trabajo)
+            val politica = if (inmediato) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE
+            WorkManager.getInstance(contexto).enqueueUniqueWork("sincronizacion-valuam", politica, trabajo)
         }
     }
 
-    override fun doWork(): Result {
+    override fun doWork(): Result = synchronized(bloqueo) {
+        if (isStopped) Result.success() else sincronizar()
+    }
+
+    private fun sincronizar(): Result {
         val usuarios = Usuarios(applicationContext)
         val base = usuarios.base
         if (BuildConfig.API_BASE_URL.isBlank()) {
@@ -93,6 +100,11 @@ class Sincronizacion(contexto: Context, parametros: WorkerParameters) : Worker(c
         }
         return try {
             base.meta("estado", "Sincronizando…")
+            // Revalida también los conflictos guardados por versiones anteriores de la app.
+            if (base.meta("token").isNotBlank()) {
+                val lista = Servidor.solicitar(applicationContext, JSONObject().put("accion", "listar")).getJSONArray("usuarios")
+                for (i in 0 until lista.length()) usuarios.incorporar(usuarioJson(lista.getJSONObject(i)))
+            }
             val ordenes = base.readableDatabase.rawQuery("SELECT orden FROM pendientes WHERE conflicto IS NULL ORDER BY orden", null).use {
                 buildList { while (it.moveToNext()) add(it.getLong(0)) }
             }
@@ -132,7 +144,9 @@ class Sincronizacion(contexto: Context, parametros: WorkerParameters) : Worker(c
                     }
                 } catch (e: ErrorApi) {
                     if (e.estado == 409 || e.estado == 400) {
-                        base.writableDatabase.execSQL("UPDATE pendientes SET conflicto=? WHERE id=?", arrayOf(e.datos.toString(), id))
+                        val remoto = e.datos.optJSONObject("remoto")?.let(::usuarioJson)
+                        val resuelto = e.datos.optString("error") == "conflicto" && remoto != null && usuarios.resolverCoincidentes(remoto)
+                        if (!resuelto) base.writableDatabase.execSQL("UPDATE pendientes SET conflicto=? WHERE id=?", arrayOf(e.datos.toString(), id))
                     } else throw e
                 }
             }

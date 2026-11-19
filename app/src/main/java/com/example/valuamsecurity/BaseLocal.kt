@@ -91,9 +91,8 @@ internal class BaseLocal(contexto: Context, nombre: String = "valuam.db") : SQLi
     }
 }
 
-internal class Usuarios(contexto: Context) {
+internal class Usuarios(contexto: Context, internal val base: BaseLocal = BaseLocal.compartida(contexto)) {
     private val contexto = contexto.applicationContext
-    internal val base = BaseLocal.compartida(this.contexto)
 
     fun listar(): List<Usuario> = base.readableDatabase.rawQuery("SELECT datos FROM usuarios WHERE eliminado=0", null).use {
         buildList { while (it.moveToNext()) add(usuarioJson(JSONObject(it.getString(0)))) }
@@ -194,11 +193,33 @@ internal class Usuarios(contexto: Context) {
     fun hayPendientes(id: String): Boolean = base.readableDatabase.rawQuery("SELECT 1 FROM pendientes WHERE entidad=? LIMIT 1", arrayOf(id)).use { it.moveToFirst() }
 
     fun incorporar(remoto: Usuario) {
+        if (resolverCoincidentes(remoto)) return
         base.transaccion { db ->
             val local = porId(remoto.id)
             if (!remoto.activo || remoto.eliminado || local?.esquema != remoto.esquema || local?.revisionClave != remoto.revisionClave) invalidarAcceso(remoto.id)
             if (!hayPendientes(remoto.id)) base.escribirUsuario(db, remoto.copy(claveHash = local?.claveHash ?: ""))
         }
+    }
+
+    fun resolverCoincidentes(remoto: Usuario): Boolean = base.transaccion { db ->
+        val local = porId(remoto.id) ?: return@transaccion false
+        if (local.version == 0L || remoto.version < local.version || !mismoPerfil(local, remoto)) return@transaccion false
+        val pendientes = db.rawQuery("SELECT tipo,datos FROM pendientes WHERE entidad=?", arrayOf(local.id)).use {
+            buildList {
+                while (it.moveToNext()) add(it.getString(0) to usuarioJson(JSONObject(it.getString(1))))
+            }
+        }
+        if (pendientes.isEmpty() || pendientes.any { (tipo, datos) ->
+                tipo !in listOf("crear", "editar") || datos.claveHash != local.claveHash || datos.esquema != local.esquema
+            }) return@transaccion false
+
+        // La respuesta actual del servidor confirma el resultado final que conserva el teléfono.
+        // Los estados de acceso y contraseña siguen la revisión confirmada por el servidor.
+        val mismaCredencial = local.esquema == remoto.esquema && local.revisionClave == remoto.revisionClave
+        if (!remoto.activo || !mismaCredencial) invalidarAcceso(local.id)
+        base.escribirUsuario(db, remoto.copy(claveHash = if (mismaCredencial) local.claveHash else ""))
+        db.delete("pendientes", "entidad=?", arrayOf(local.id))
+        true
     }
 
     fun conflictos(): List<Pair<String, JSONObject>> = base.readableDatabase.rawQuery(

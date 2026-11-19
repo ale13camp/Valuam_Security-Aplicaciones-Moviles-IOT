@@ -13,7 +13,7 @@ android {
         applicationId = "com.example.valuamsecurity"
         minSdk = 24
         targetSdk = 37
-        buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("valuamApiUrl").orElse("").get() + "\"")
+        buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("valuamApiUrl").orElse("https://13.216.100.242/valuam/index.php").get() + "\"")
         versionCode = 2
         versionName = "2.0"
 

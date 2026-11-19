@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__) . '/correo.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -82,7 +83,9 @@ function enviarCodigo(array $config, string $destino, string $codigo): void {
     $mail->setFrom($config['smtp_user'], 'Valuam Security');
     $mail->addAddress($destino);
     $mail->Subject = 'Código de recuperación de Valuam Security';
-    $mail->Body = "Tu código es $codigo. Vence un minuto después de su generación. Si solicitaste otro código, utiliza el más reciente.";
+    $mail->isHTML(true);
+    $mail->Body = cuerpoCodigo($codigo);
+    $mail->AltBody = "Código de verificación\n\nHemos recibido una solicitud de verificación.\nTu código de verificación es: $codigo\n\nEste código es de un solo uso y vence en un minuto desde su generación.\nSi tú no solicitaste este código, puedes ignorar este correo.";
     $mail->send();
 }
 
