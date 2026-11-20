@@ -74,7 +74,7 @@ class ListaUsuarios : Pantalla(R.layout.activity_lista) {
             val boton = Button(this)
             boton.backgroundTintList = ColorStateList.valueOf(getColor(R.color.valuam_turquesa))
             boton.setTextColor(getColor(R.color.valuam_azul_oscuro))
-            boton.text = "${usuario.nombres} ${usuario.apellidos}" + if (usuario.usuario.isBlank()) "\nCompletar nombre de usuario" else ""
+            boton.text = "${usuario.nombres} ${usuario.apellidos}"
             boton.setOnClickListener {
                 startActivity(Intent(this, EditarUsuario::class.java).putExtra(USUARIO_ID, usuario.id))
             }
@@ -92,8 +92,6 @@ class EditarUsuario : Pantalla(R.layout.activity_editar) {
             finish()
             return
         }
-        val nombreUsuario = findViewById<EditText>(R.id.nombreUsuario)
-        nombreUsuario.setText(usuario.usuario)
         val nombres = findViewById<EditText>(R.id.nombres)
         val apellidos = findViewById<EditText>(R.id.apellidos)
         val correo = findViewById<EditText>(R.id.correo)
@@ -104,18 +102,13 @@ class EditarUsuario : Pantalla(R.layout.activity_editar) {
         findViewById<Button>(R.id.guardar).setOnClickListener {
             if (!nombreValido(nombres, "los nombres") || !nombreValido(apellidos, "los apellidos") ||
                 !correoValido(correo)) return@setOnClickListener
-            val nombre = nombreUsuario.text.toString().trim()
-            if (!nombreUsuarioValido(nombre)) {
-                error("Completa un nombre de usuario válido.", nombreUsuario)
-                return@setOnClickListener
-            }
             val email = correo.text.toString().trim()
             val duplicado = usuarios.porCorreo(email)
             if (duplicado != null && duplicado.id != usuario.id) {
                 error("Ese correo ya está registrado.", correo)
                 return@setOnClickListener
             }
-            val actualizado = usuario.copy(usuario = nombre, nombres = nombres.text.toString().trim(),
+            val actualizado = usuario.copy(usuario = usuario.usuario.ifBlank { "u_" + usuario.id.replace("-", "") }, nombres = nombres.text.toString().trim(),
                 apellidos = apellidos.text.toString().trim(), correo = email)
             if (usuarios.guardar(actualizado)) {
                 exito("Datos guardados. Los cambios pendientes se sincronizarán con el servidor.", ::finish)

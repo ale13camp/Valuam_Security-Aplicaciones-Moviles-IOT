@@ -8,6 +8,10 @@ import android.util.Patterns
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.EditText
+import android.graphics.Color
+import android.view.Gravity
+import android.view.View
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -20,16 +24,40 @@ abstract class Pantalla(private val layout: Int) : AppCompatActivity() {
     private val relojEstado = Handler(Looper.getMainLooper())
     private var estadoAnterior = ""
     private lateinit var estadoConexion: TextView
+    private lateinit var estadoSincronizacion: TextView
+    private lateinit var estadoPendientes: TextView
+    private var detalleEstado = ""
     private val actualizarEstado = object : Runnable {
         override fun run() {
             val cantidad = usuarios.pendientes()
             val conflictos = usuarios.conflictos().size
             val migrados = usuarios.sinUsuario()
-            val conexion = if (Servidor.conectado(this@Pantalla)) "Con conexión" else "Sin conexión · trabajo local"
+            val conectado = Servidor.conectado(this@Pantalla)
+            val conexion = if (conectado) "Con conexión" else "Sin conexión · trabajo local"
             val estado = "$conexion · $cantidad cambios pendientes" +
                 if (conflictos > 0) " · $conflictos conflictos (toca para revisar)" else
                 if (migrados > 0) " · $migrados cuentas por completar" else " · ${usuarios.base.meta("estado")}"
-            estadoConexion.text = estado
+            detalleEstado = estado
+            actualizarIndicador(estadoConexion, R.drawable.ic_estado_conexion,
+                if (conectado) "En línea" else "Sin conexión",
+                if (conectado) Color.rgb(46, 125, 50) else Color.rgb(100, 110, 120))
+            val sincronizacion = usuarios.base.meta("estado")
+            val etiqueta = when {
+                !conectado -> "Local"
+                conflictos > 0 -> "Revisar"
+                sincronizacion == "Sincronización completada" -> "Sincronizado"
+                sincronizacion.startsWith("Sincronizando") -> "Sincronizando"
+                sincronizacion.startsWith("Servidor sin respuesta") -> "Sin respuesta"
+                else -> "Estado"
+            }
+            actualizarIndicador(estadoSincronizacion, R.drawable.ic_estado_sync, etiqueta, Color.rgb(21, 101, 192))
+            estadoPendientes.visibility = if (cantidad > 0 || migrados > 0 || conflictos > 0) View.VISIBLE else View.GONE
+            actualizarIndicador(estadoPendientes, R.drawable.ic_estado_pendientes,
+                when {
+                    cantidad > 0 -> "$cantidad pendientes"
+                    conflictos > 0 -> "$conflictos conflictos"
+                    else -> "$migrados por completar"
+                }, Color.rgb(130, 94, 0), Color.rgb(251, 192, 45))
             val revision = estado + usuarios.base.meta("revision_datos")
             if (revision != estadoAnterior) {
                 estadoAnterior = revision
@@ -42,6 +70,30 @@ abstract class Pantalla(private val layout: Int) : AppCompatActivity() {
 
     protected open fun datosActualizados() = Unit
     protected open fun revisarOperacionPendiente() = Unit
+
+    private fun dp(valor: Int) = (valor * resources.displayMetrics.density).toInt()
+
+    private fun actualizarIndicador(vista: TextView, icono: Int, etiqueta: String, color: Int, colorIcono: Int = color) {
+        vista.text = etiqueta
+        vista.contentDescription = "$etiqueta. Toca para ver el estado de conexión y sincronización."
+        vista.setTextColor(color)
+        val dibujo = ContextCompat.getDrawable(this, icono)?.mutate()?.apply {
+            setTint(colorIcono)
+            setBounds(0, 0, dp(18), dp(18))
+        }
+        vista.setCompoundDrawablesRelative(dibujo, null, null, null)
+    }
+
+    private fun mostrarEstado() {
+        val dialogo = AlertDialog.Builder(this).setTitle("Conexión y sincronización")
+            .setMessage(detalleEstado).setNegativeButton("Cerrar", null)
+        if (usuarios.conflictos().isNotEmpty()) {
+            dialogo.setPositiveButton("Revisar conflictos") { _, _ -> revisarConflictos() }
+        } else {
+            dialogo.setPositiveButton("Sincronizar") { _, _ -> Sincronizacion.programar(this, inmediato = true) }
+        }
+        dialogo.show()
+    }
 
     protected fun <T> ejecutarEnPantalla(tarea: () -> T, respuesta: (Result<T>) -> Unit) {
         Servidor.ejecutar(tarea) { resultado ->
@@ -79,14 +131,25 @@ abstract class Pantalla(private val layout: Int) : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(layout)
         val contenido = (findViewById<android.view.ViewGroup>(R.id.main)).getChildAt(0) as? LinearLayout
-        estadoConexion = TextView(this).apply {
-            textSize = 12f
-            gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.rgb(16, 36, 58))
-            setPadding(0, 8, 0, 12)
-            setOnClickListener { revisarConflictos() }
+        val indicadores = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(2), 0, dp(6))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-        contenido?.addView(estadoConexion, 0)
+        fun indicador() = TextView(this).apply {
+            textSize = 10f
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            compoundDrawablePadding = dp(4)
+            setPadding(dp(5), 0, dp(5), 0)
+            setOnClickListener { mostrarEstado() }
+            indicadores.addView(this, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        estadoConexion = indicador()
+        estadoSincronizacion = indicador()
+        estadoPendientes = indicador()
+        contenido?.addView(indicadores, 0)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { vista, insets ->
             val barras = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
             vista.setPadding(barras.left, barras.top, barras.right, barras.bottom)
